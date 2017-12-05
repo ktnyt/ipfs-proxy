@@ -44,12 +44,12 @@ func TestMessageMarshalUnmarshalBinary(t *testing.T) {
 	marshaled, err := m0.MarshalBinary()
 
 	if err != nil {
-		t.Errorf("failed to marshal message: %s", err)
+		t.Fatalf("failed to marshal message: %s", err)
 	}
 
 	var m1 Message
 	if err := m1.UnmarshalBinary(marshaled); err != nil {
-		t.Errorf("failed to unmarshal message: %s", err)
+		t.Fatalf("failed to unmarshal message: %s", err)
 	}
 
 	if !m0.Time().Equal(m1.Time()) {

@@ -8,7 +8,7 @@ func TestCore(t *testing.T) {
 	p, err := NewLocalProxy("/ip4/127.0.0.1/tcp/5001")
 
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	defer p.Cancel()
