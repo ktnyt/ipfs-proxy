@@ -6,21 +6,20 @@ import (
 
 func TestCore(t *testing.T) {
 	p, err := NewLocalProxy("/ip4/127.0.0.1/tcp/5001")
-	defer p.Cancel()
 
 	if err != nil {
 		t.Error(err)
 	}
 
-	c := make(chan error)
-
-	go p.Spin(c)
+	defer p.Cancel()
 
 	data := []byte("Hello, world!")
 
+	go p.Spin()
+
 	for len(p.Msgs) == 0 {
 		select {
-		case err := <-c:
+		case err := <-p.Comm:
 			t.Error(err)
 		default:
 			if err := p.Ping(data); err != nil {

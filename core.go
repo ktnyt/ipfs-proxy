@@ -15,6 +15,7 @@ type Proxy struct {
 	level  uint8
 	prefix string
 	Msgs   map[peer.ID]Message
+	Comm   chan error
 }
 
 func setUser() error {
@@ -37,20 +38,21 @@ func setUser() error {
 
 func newProxy(prefix string) (*Proxy, error) {
 	if err := setUser(); err != nil {
-		return nil, fmt.Errorf("failed to create proxy: %s", err)
+		return nil, fmt.Errorf("newProxy: %s", err)
 	}
 
 	p := &Proxy{
 		prefix: prefix,
 		level:  1,
 		Msgs:   make(map[peer.ID]Message),
+		Comm:   make(chan error),
 	}
 
 	topic := p.Topic()
 
 	var err error
 	if p.sub, err = ipfs.PubSubSubscribe(topic); err != nil {
-		return nil, fmt.Errorf("failed to join proxy '%s': %s", topic, err)
+		return nil, fmt.Errorf("newProxy: %s", topic, err)
 	}
 
 	return p, nil
@@ -77,42 +79,54 @@ func (p *Proxy) Ping(payload []byte) (err error) {
 
 	var data []byte
 	if data, err = m.MarshalBinary(); err != nil {
-		return fmt.Errorf("failed to ping: %s", err)
+		return fmt.Errorf("Proxy.Ping: %s", err)
 	}
 
 	if err = ipfs.PubSubPublish(p.Topic(), string(data)); err != nil {
-		return fmt.Errorf("failed to ping: %s", err)
+		return fmt.Errorf("Proxy.Ping: %s", err)
 	}
 
 	return nil
 }
 
-func (p *Proxy) Spin(c chan error) {
+func (p *Proxy) Next() (err error) {
+	var rec shell.PubSubRecord
+	if rec, err = p.sub.Next(); err != nil {
+		return fmt.Errorf("Proxy.Next: %s", err)
+	}
+
+	data := rec.Data()
+
+	if len(data) == 0 {
+		return nil
+	}
+
+	var m Message
+	if err = m.UnmarshalBinary(data); err != nil {
+		return fmt.Errorf("Proxy.Next: %s", err)
+	}
+
+	p.Msgs[rec.From()] = m
+
+	return nil
+}
+
+func (p *Proxy) Spin() {
 	for {
-		rec, err := p.sub.Next()
-
-		if err != nil {
-			c <- fmt.Errorf("failed to get next message: %s", err)
+		select {
+		case <-p.Comm:
+			break
+		default:
+			if err := p.Next(); err != nil {
+				p.Comm <- err
+			}
 		}
-
-		data := rec.Data()
-
-		if len(data) == 0 {
-			continue
-		}
-
-		var m Message
-		if err := m.UnmarshalBinary(data); err != nil {
-			c <- fmt.Errorf("failed to process message: %s", err)
-		}
-
-		p.Msgs[m.From()] = m
 	}
 }
 
 func (p *Proxy) Cancel() error {
 	if p.sub == nil {
-		return fmt.Errorf("proxy not connected")
+		return fmt.Errorf("Proxy.Cancel: not connected")
 	}
 
 	return p.sub.Cancel()
