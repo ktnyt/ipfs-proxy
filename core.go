@@ -15,7 +15,6 @@ type Proxy struct {
 	level  uint8
 	prefix string
 	Msgs   map[peer.ID]Message
-	Comm   chan error
 }
 
 func setUser() error {
@@ -45,7 +44,6 @@ func newProxy(prefix string) (*Proxy, error) {
 		prefix: prefix,
 		level:  1,
 		Msgs:   make(map[peer.ID]Message),
-		Comm:   make(chan error),
 	}
 
 	topic := p.Topic()
@@ -66,6 +64,12 @@ func NewLocalProxy(prefix string) (*Proxy, error) {
 
 func NewProxy(prefix, url string) (*Proxy, error) {
 	ipfs = shell.NewShell(url)
+
+	return newProxy(prefix)
+}
+
+func NewProxyWithIpfs(prefix string, s *shell.Shell) (*Proxy, error) {
+	ipfs = s
 
 	return newProxy(prefix)
 }
@@ -111,14 +115,14 @@ func (p *Proxy) Next() (err error) {
 	return nil
 }
 
-func (p *Proxy) Spin() {
+func (p *Proxy) Spin(c chan error) {
 	for {
 		select {
-		case <-p.Comm:
+		case <-c:
 			break
 		default:
 			if err := p.Next(); err != nil {
-				p.Comm <- err
+				c <- err
 			}
 		}
 	}

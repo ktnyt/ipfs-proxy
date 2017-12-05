@@ -15,11 +15,13 @@ func TestCore(t *testing.T) {
 
 	data := []byte("Hello, world!")
 
-	go p.Spin()
+	c := make(chan error)
+
+	go p.Spin(c)
 
 	for len(p.Msgs) == 0 {
 		select {
-		case err := <-p.Comm:
+		case err := <-c:
 			t.Error(err)
 		default:
 			if err := p.Ping(data); err != nil {
